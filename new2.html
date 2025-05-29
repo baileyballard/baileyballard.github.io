@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Macro Dashboard</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      background-color: #f4f4f4;
+      color: #333;
+    }
+
+    h1 {
+      color: #e91e63;
+    }
+
+    h2 {
+      color: #333;
+      border-bottom: 2px solid #e91e63;
+      padding-bottom: 0.5rem;
+    }
+
+    .indicator {
+      margin: 0.5rem 0;
+      padding: 0.5rem;
+      background: #fff0f5;
+      border-left: 5px solid #e91e63;
+      border-radius: 5px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    a {
+      color: #e91e63;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .meta {
+      font-size: 0.9rem;
+      color: #555;
+    }
+
+    button {
+      margin-top: 1rem;
+      padding: 0.5rem 1rem;
+      background-color: #e91e63;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #d81b60;
+    }
+
+    @media (max-width: 600px) {
+      body {
+        padding: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Live Macroeconomic Indicators</h1>
+  <button onclick="loadIndicators()">Refresh Data</button>
+
+  <div id="data">
+    <h2>Productivity</h2>
+    <div id="productivity">Loading...</div>
+
+    <h2>Labor Markets</h2>
+    <div id="labor">Loading...</div>
+
+    <h2>Inflation</h2>
+    <div id="inflation">Loading...</div>
+
+    <h2>Real Estate</h2>
+    <div id="real_estate">Loading...</div>
+
+    <h2>Sales</h2>
+    <div id="sales">Loading...</div>
+
+    <h2>Interest Rates</h2>
+    <div id="interest_rates">Loading...</div>
+
+    <h2>Household Finances</h2>
+    <div id="household">Loading...</div>
+
+    <h2>Miscellaneous</h2>
+    <div id="misc">Loading...</div>
+  </div>
+
+  <script>
+    const apiKey = "d1ddb8f826d9b698fbd807230c63455e";
+    const proxy = "https://corsproxy.io/?";
+    const baseObservationURL = "https://api.stlouisfed.org/fred/series/observations";
+    const baseMetaURL = "https://api.stlouisfed.org/fred/series";
+    const baseReleaseDatesURL = "https://api.stlouisfed.org/fred/release/dates";
+
+    const indicators = {
+      productivity: [
+        { name: "Real GDP % Change YoY", seriesId: "A191RL1Q225SBEA" },
+        { name: "GDPNow", external: true, url: "https://www.atlantafed.org/cqer/research/gdpnow" },
+        { name: "Chicago Fed National Activity Index", seriesId: "CFNAI" }
+      ],
+      labor: [
+        { name: "Unemployment Rate", seriesId: "UNRATE" },
+        { name: "Total Non-Farm Payrolls", seriesId: "PAYEMS" },
+        { name: "Labor Force Participation Rate", seriesId: "CIVPART" }
+      ],
+      inflation: [
+        { name: "CPI % Change YoY", seriesId: "CPIAUCSL" },
+        { name: "Core CPI % Change YoY", seriesId: "USACPICORMINMEI" },
+        { name: "Core PCEPI % Change YoY", seriesId: "PCEPILFE" }
+      ],
+      real_estate: [
+        { name: "30 Year Mortgage Rates", seriesId: "MORTGAGE30US" },
+        { name: "New Housing Permits", seriesId: "PERMIT" },
+        { name: "New Housing Starts", seriesId: "HOUST" }
+      ],
+      sales: [
+        { name: "Advance Retail Sales", seriesId: "RSXFS" },
+        { name: "Durable Goods Orders", seriesId: "DGORDER" },
+        { name: "Total Vehicle Sales", seriesId: "TOTALSA" }
+      ],
+      interest_rates: [
+        { name: "10 Year Treasury Yield", seriesId: "DGS10" },
+        { name: "10–2 Spread", seriesId: "T10Y2Y" },
+        { name: "BAA – 10 Year Spread", seriesId: "BAA10Y" }
+      ],
+      household: [
+        { name: "Mortgage Delinquency Rates", seriesId: "DRSFRMACBS" },
+        { name: "Personal Savings Rate", seriesId: "PSAVERT" },
+        { name: "Real Disposable Personal Income per Capita", seriesId: "A229RX0" }
+      ],
+      misc: [
+        { name: "Smoothed US Recession Probability", seriesId: "RECPROUSM156N" },
+        { name: "Conference Board Leading Index", external: true, url: "https://data-central.conference-board.org/" }
+      ]
+    };
+
+    async function fetchMetaData(seriesId) {
+      try {
+        const metaURL = `${proxy}${baseMetaURL}?series_id=${seriesId}&api_key=${apiKey}&file_type=json`;
+        const response = await fetch(metaURL);
+        const data = await response.json();
+        return data?.seriess?.[0];
+      } catch (error) {
+        console.error(`Error fetching metadata for ${seriesId}:`, error);
+        return null;
+      }
+    }
+
+    async function fetchNextReleaseDate(releaseId) {
+      try {
+        const url = `${proxy}${baseReleaseDatesURL}?release_id=${releaseId}&api_key=${apiKey}&file_type=json&sort_order=asc`;
+        const response = await fetch(url);
+        const data = await response.json();
+        const today = new Date().toISOString().split('T')[0];
+        for (let dateEntry of data.release_dates) {
+          if (dateEntry.date > today) {
+            return dateEntry.date;
+          }
+        }
+        return "N/A";
+      } catch (error) {
+        console.error(`Error fetching next release date for release ID ${releaseId}:`, error);
+        return "N/A";
+      }
+    }
+
+    async function fetchObservation(seriesId) {
+      try {
+        const obsURL = `${proxy}${baseObservationURL}?series_id=${seriesId}&api_key=${apiKey}&file_type=json&sort_order=desc&limit=1`;
+        const response = await fetch(obsURL);
+        const data = await response.json();
+        return data?.observations?.[0];
+      } catch (error) {
+        console.error(`Error fetching observation for ${seriesId}:`, error);
+        return null;
+      }
+    }
+
+    async function fetchIndicator(indicator) {
+      if (indicator.external) {
+        return `
+          <div class="indicator">
+            <strong><a href="${indicator.url}" target="_blank" rel="noopener noreferrer">${indicator.name}</a>:</strong> Data not available via FRED API.
+            <div class="meta">
+              Please visit the external link for more information.
+            </div>
+          </div>`;
+      }
+
+      try {
+        const [meta, obs] = await Promise.all([
+          fetchMetaData(indicator.seriesId),
+          fetchObservation(indicator.seriesId)
+        ]);
+
+        const fredLink = `https://fred.stlouisfed.org/series/${indicator.seriesId}`;
+        const value = obs?.value || "N/A";
+        const valueDate = obs?.date || "N/A";
+        const lastUpdated = meta?.last_updated?.split(" ")[0] || "N/A";
+        const releaseId = meta?.release_id;
+        let nextRelease = "N/A";
+
+        if (releaseId) {
+          nextRelease = await fetchNextReleaseDate(releaseId);
+        }
+
+        return `
+          <div class="indicator">
+            <strong><a href="${fredLink}" target="_blank" rel="noopener noreferrer">${indicator.name}</a>:</strong> 
+            ${value}
+            <div class="meta">
+              Data Date: ${valueDate} | Last Updated: ${lastUpdated}<br>
+              Next Release: ${nextRelease}
+            </div>
+          </div>`;
+      } catch (error) {
+        console.error(`Error fetching indicator ${indicator.name}:`, error);
+        return `
+          <div class="indicator">
+            <strong>${indicator.name}</strong>: Error loading data.
+          </div>`;
+      }
+    }
+
+    async function loadIndicators() {
+      for (const [category, indicatorsList] of Object.entries(indicators)) {
+        const container = document.getElementById(category);
+        container.innerHTML = "Loading...";
+        const results = await Promise.all(indicatorsList.map(fetchIndicator));
+        container.innerHTML = results.join("");
+      }
+    }
+
+    loadIndicators();
+  </script>
+
+</body>
+</html>
