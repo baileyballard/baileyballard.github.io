@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Macro Dashboard</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      background-color: #f4f4f4;
+      color: #333;
+    }
+
+    h1 {
+      color: #e91e63;
+    }
+
+    h2 {
+      color: #333;
+      border-bottom: 2px solid #e91e63;
+      padding-bottom: 0.5rem;
+    }
+
+    .indicator {
+      margin: 0.5rem 0;
+      padding: 0.5rem;
+      background: #fff0f5;
+      border-left: 5px solid #e91e63;
+      border-radius: 5px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    a {
+      color: #e91e63;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .meta {
+      font-size: 0.9rem;
+      color: #555;
+    }
+
+    button {
+      margin-top: 1rem;
+      padding: 0.5rem 1rem;
+      background-color: #e91e63;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #d81b60;
+    }
+
+    @media (max-width: 600px) {
+      body {
+        padding: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Live Macroeconomic Indicators</h1>
+  <button onclick="loadIndicators()">Refresh Data</button>
+
+  <div id="data">
+    <h2>Productivity</h2>
+    <div id="productivity">Loading...</div>
+
+    <h2>Labor Markets</h2>
+    <div id="labor">Loading...</div>
+
+    <h2>Inflation</h2>
+    <div id="inflation">Loading...</div>
+
+    <h2>Real Estate</h2>
+    <div id="real_estate">Loading...</div>
+
+    <h2>Sales</h2>
+    <div id="sales">Loading...</div>
+
+    <h2>Interest Rates</h2>
+    <div id="interest_rates">Loading...</div>
+
+    <h2>Household Finances</h2>
+    <div id="household">Loading...</div>
+
+    <h2>Miscellaneous</h2>
+    <div id="misc">Loading...</div>
+  </div>
+
+  <script>
+    const apiKey = "d1ddb8f826d9b698fbd807230c63455e";
+    const proxy = "https://corsproxy.io/?";
+    const baseObservationURL = "https://api.stlouisfed.org/fred/series/observations";
+    const baseMetaURL = "https://api.stlouisfed.org/fred/series";
+    const baseVintageURL = "https://api.stlouisfed.org/fred/series/vintagedates";
+
+    const indicators = {
+      productivity: [
+        {
+          name: "Real GDP % Change YoY",
+          seriesId: "A191RL1Q225SBEA",
+          frequency: "Quarterly",
+          seasonalAdjustment: "Seasonally Adjusted Annual Rate"
+        },
+        {
+          name: "GDPNow",
+          external: true,
+          url: "https://www.atlantafed.org/cqer/research/gdpnow",
+          frequency: "Quarterly",
+          seasonalAdjustment: "Seasonally Adjusted Annual Rate"
+        },
+        {
+          name: "Chicago Fed National Activity Index",
+          seriesId: "CFNAI",
+          frequency: "Monthly",
+          seasonalAdjustment: "Seasonally Adjusted"
+        }
+      ]
+      // Add other categories as needed
+    };
+
+    async function fetchMetaData(seriesId) {
+      const url = `${proxy}${baseMetaURL}?series_id=${seriesId}&api_key=${apiKey}&file_type=json`;
+      const response = await fetch(url);
+      const data = await response.json();
+      return data?.seriess?.[0];
+    }
+
+    async function fetchObservation(seriesId) {
+      const url = `${proxy}${baseObservationURL}?series_id=${seriesId}&api_key=${apiKey}&file_type=json&sort_order=desc&limit=1`;
+      const response = await fetch(url);
+      const data = await response.json();
+      return data?.observations?.[0];
+    }
+
+    async function fetchVintageDates(seriesId) {
+      const url = `${proxy}${baseVintageURL}?series_id=${seriesId}&api_key=${apiKey}&file_type=json`;
+      const response = await fetch(url);
+      const data = await response.json();
+      return data?.vintage_dates || [];
+    }
+
+    function estimateNextReleaseDate(vintageDates) {
+      if (vintageDates.length < 2) return "N/A";
+      const latest = new Date(vintageDates[vintageDates.length - 1]);
+      const previous = new Date(vintageDates[vintageDates.length - 2]);
+      const interval = latest - previous;
+      const nextDate = new Date(latest.getTime() + interval);
+      return nextDate.toISOString().split('T')[0];
+    }
+
+    async function fetchIndicator(indicator) {
+      if (indicator.external) {
+        return `<div class="indicator">
+          <strong><a href="${indicator.url}" target="_blank" rel="noopener noreferrer">${indicator.name}</a>:</strong> External data source.
+          <div class="meta">
+            Frequency: ${indicator.frequency} | Seasonal Adjustment: ${indicator.seasonalAdjustment}
+          </div>
+        </div>`;
+      }
+
+      try {
+        const [meta, obs, vintages] = await Promise.all([
+          fetchMetaData(indicator.seriesId),
+          fetchObservation(indicator.seriesId),
+          fetchVintageDates(indicator.seriesId)
+        ]);
+
+        const value = obs?.value || "N/A";
+        const valueDate = obs?.date || "N/A";
+        const lastUpdated = meta?.last_updated?.split(" ")[0] || "N/A";
+        const nextRelease = estimateNextReleaseDate(vintages);
+        const link = `https://fred.stlouisfed.org/series/${indicator.seriesId}`;
+
+        return `<div class="indicator">
+          <strong><a href="${link}" target="_blank" rel="noopener noreferrer">${indicator.name}</a>:</strong> ${value}
+          <div class="meta">
+            Data Date: ${valueDate} | Last Updated: ${lastUpdated}<br>
+            Next Release: ${nextRelease}<br>
+            Frequency: ${indicator.frequency} | Seasonal Adjustment: ${indicator.seasonalAdjustment}
+          </div>
+        </div>`;
+      } catch (err) {
+        console.error(err);
+        return `<div class="indicator"><strong>${indicator.name}</strong>: Error loading data.</div>`;
+      }
+    }
+
+    async function loadIndicators() {
+      for (const [category, list] of Object.entries(indicators)) {
+        const container = document.getElementById(category);
+        container.innerHTML = "Loading...";
+        const items = await Promise.all(list.map(fetchIndicator));
+        container.innerHTML = items.join("");
+      }
+    }
+
+    loadIndicators();
+  </script>
+</body>
+</html>
