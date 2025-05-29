@@ -13,5 +13,36 @@
     // Placeholder for API data
     document.getElementById("data").innerText = "GDP: Loading...\nInflation: Loading...";
   </script>
+
+  <script>
+  const apiKey = "d1ddb8f826d9b698fbd807230c63455e"; // Replace with your real key
+  const baseURL = "https://api.stlouisfed.org/fred/series/observations";
+
+  const indicators = [
+    { name: "GDP", seriesId: "GDPC1" },
+    { name: "Inflation (CPI)", seriesId: "CPIAUCSL" },
+    { name: "Unemployment Rate", seriesId: "UNRATE" }
+  ];
+
+  const fetchData = async (indicator) => {
+    const url = `${baseURL}?series_id=${indicator.seriesId}&api_key=${apiKey}&file_type=json&sort_order=desc&limit=1`;
+    const response = await fetch(url);
+    const data = await response.json();
+    return `${indicator.name}: ${data.observations[0].value}`;
+  };
+
+  const loadData = async () => {
+    const dataDiv = document.getElementById("data");
+    let output = "Latest Macroeconomic Indicators:\n\n";
+    for (const indicator of indicators) {
+      const value = await fetchData(indicator);
+      output += `${value}\n`;
+    }
+    dataDiv.innerText = output;
+  };
+
+  loadData();
+</script>
+
 </body>
 </html>
