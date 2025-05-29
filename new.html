@@ -29,10 +29,12 @@
   <h1>Live Macroeconomic Indicators</h1>
   <div id="data">Loading data...</div>
 
-  <script>
+ <script>
   const apiKey = "d1ddb8f826d9b698fbd807230c63455e";
-  const baseURL = "https://api.stlouisfed.org/fred/series/observations";
   const proxy = "https://corsproxy.io/?";
+  const baseObservationURL = "https://api.stlouisfed.org/fred/series/observations";
+  const baseMetaURL = "https://api.stlouisfed.org/fred/series";
+  const baseReleaseURL = "https://api.stlouisfed.org/fred/releases/release";
 
   const indicators = [
     { name: "GDP (Real)", seriesId: "GDPC1" },
@@ -41,22 +43,52 @@
     { name: "Federal Funds Rate", seriesId: "FEDFUNDS" }
   ];
 
-  async function fetchIndicator(indicator) {
-    const url = `${proxy}${baseURL}?series_id=${indicator.seriesId}&api_key=${apiKey}&file_type=json&sort_order=desc&limit=1`;
-    const response = await fetch(url);
+  async function fetchMetaData(seriesId) {
+    const metaURL = `${proxy}${baseMetaURL}?series_id=${seriesId}&api_key=${apiKey}&file_type=json`;
+    const response = await fetch(metaURL);
     const data = await response.json();
+    return data?.seriess?.[0];
+  }
 
-    const observation = data.observations?.[0];
-    const value = observation?.value || "N/A";
-    const date = observation?.date || "Unknown";
+  async function fetchReleaseDate(releaseId) {
+    const releaseURL = `${proxy}${baseReleaseURL}?release_id=${releaseId}&api_key=${apiKey}&file_type=json`;
+    const response = await fetch(releaseURL);
+    const data = await response.json();
+    return data?.release?.date || "N/A";
+  }
+
+  async function fetchObservation(seriesId) {
+    const obsURL = `${proxy}${baseObservationURL}?series_id=${seriesId}&api_key=${apiKey}&file_type=json&sort_order=desc&limit=1`;
+    const response = await fetch(obsURL);
+    const data = await response.json();
+    return data?.observations?.[0];
+  }
+
+  async function fetchIndicator(indicator) {
+    const [meta, obs] = await Promise.all([
+      fetchMetaData(indicator.seriesId),
+      fetchObservation(indicator.seriesId)
+    ]);
 
     const fredLink = `https://fred.stlouisfed.org/series/${indicator.seriesId}`;
+    const value = obs?.value || "N/A";
+    const valueDate = obs?.date || "N/A";
+    const lastUpdated = meta?.last_updated?.split(" ")[0] || "N/A";
+    const releaseId = meta?.release_id;
+    let nextRelease = "N/A";
+
+    if (releaseId) {
+      nextRelease = await fetchReleaseDate(releaseId);
+    }
 
     return `
       <div class="indicator">
         <strong><a href="${fredLink}" target="_blank" rel="noopener noreferrer">${indicator.name}</a>:</strong> 
         ${value}
-        <div style="font-size: 0.9rem; color: gray;">Last updated: ${date}</div>
+        <div style="font-size: 0.9rem; color: gray;">
+          Data Date: ${valueDate} | Last Updated: ${lastUpdated}<br>
+          Next Release: ${nextRelease}
+        </div>
       </div>`;
   }
 
