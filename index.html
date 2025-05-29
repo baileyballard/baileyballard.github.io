@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Macro Dashboard</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      background-color: #f4f4f4;
+    }
+
+    h1 {
+      color: #333;
+    }
+
+    .indicator {
+      margin: 0.5rem 0;
+      padding: 0.5rem;
+      background: white;
+      border-radius: 5px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Live Macroeconomic Indicators</h1>
+  <div id="data">Loading data...</div>
+
+  <script>
+    const apiKey = "d1ddb8f826d9b698fbd807230c63455e"
+    const baseURL = "https://api.stlouisfed.org/fred/series/observations";
+
+    const indicators = [
+      { name: "GDP (Real)", seriesId: "GDPC1" },
+      { name: "Inflation (CPI)", seriesId: "CPIAUCSL" },
+      { name: "Unemployment Rate", seriesId: "UNRATE" },
+      { name: "Federal Funds Rate", seriesId: "FEDFUNDS" }
+    ];
+
+    async function fetchIndicator(indicator) {
+      const url = `${baseURL}?series_id=${indicator.seriesId}&api_key=${apiKey}&file_type=json&sort_order=desc&limit=1`;
+      const response = await fetch(url);
+      const data = await response.json();
+      const value = data.observations?.[0]?.value || "N/A";
+      return `<div class="indicator"><strong>${indicator.name}:</strong> ${value}</div>`;
+    }
+
+    async function loadIndicators() {
+      const dataDiv = document.getElementById("data");
+      dataDiv.innerHTML = "Loading...";
+      const results = await Promise.all(indicators.map(fetchIndicator));
+      dataDiv.innerHTML = results.join("");
+    }
+
+    loadIndicators();
+  </script>
+
+</body>
+</html>
