@@ -41,7 +41,8 @@
     ];
 
     async function fetchIndicator(indicator) {
-      const url = `${baseURL}?series_id=${indicator.seriesId}&api_key=${apiKey}&file_type=json&sort_order=desc&limit=1`;
+      const proxy = "https://corsproxy.io/?";
+      const url = `${proxy}${baseURL}?series_id=${indicator.seriesId}&api_key=${apiKey}&file_type=json&sort_order=desc&limit=1`;
       const response = await fetch(url);
       const data = await response.json();
       const value = data.observations?.[0]?.value || "N/A";
