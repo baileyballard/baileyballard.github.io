@@ -9,9 +9,10 @@
       font-family: Arial, sans-serif;
       padding: 2rem;
       background-color: #f4f4f4;
+      color: pink;
     }
     h1 {
-      color: #333;
+      color: pink;
     }
     .indicator {
       margin: 1rem 0;
@@ -19,13 +20,18 @@
       background: white;
       border-radius: 5px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      color: pink;
+    }
+    a {
+      color: pink;
+      text-decoration: underline;
     }
     .label {
       font-weight: bold;
     }
     .meta {
       font-size: 0.9em;
-      color: #555;
+      color: pink;
     }
   </style>
 </head>
@@ -35,6 +41,7 @@
 
   <script>
     const apiKey = "d1ddb8f826d9b698fbd807230c63455e";
+    const proxy = "https://api.allorigins.win/raw?url=";
     const baseURL = "https://api.stlouisfed.org/fred";
     const indicators = [
       { name: "GDP (Real)", seriesId: "GDPC1" },
@@ -49,32 +56,35 @@
     }
 
     async function fetchIndicator(indicator) {
-      // Get the latest data
-      const dataUrl = `${baseURL}/series/observations?series_id=${indicator.seriesId}&api_key=${apiKey}&file_type=json&sort_order=desc&limit=1`;
-      const metaUrl = `${baseURL}/series?series_id=${indicator.seriesId}&api_key=${apiKey}&file_type=json`;
+      try {
+        const dataUrl = `${proxy}${encodeURIComponent(`${baseURL}/series/observations?series_id=${indicator.seriesId}&api_key=${apiKey}&file_type=json&sort_order=desc&limit=1`)}`;
+        const metaUrl = `${proxy}${encodeURIComponent(`${baseURL}/series?series_id=${indicator.seriesId}&api_key=${apiKey}&file_type=json`)}`;
 
-      const [dataRes, metaRes] = await Promise.all([
-        fetch(dataUrl).then(res => res.json()),
-        fetch(metaUrl).then(res => res.json())
-      ]);
+        const [dataRes, metaRes] = await Promise.all([
+          fetch(dataUrl).then(res => res.json()),
+          fetch(metaUrl).then(res => res.json())
+        ]);
 
-      const value = dataRes?.observations?.[0]?.value || "N/A";
-      const observationDate = dataRes?.observations?.[0]?.date || "N/A";
+        const value = dataRes?.observations?.[0]?.value || "N/A";
+        const observationDate = dataRes?.observations?.[0]?.date || "N/A";
+        const lastUpdated = metaRes?.seriess?.[0]?.last_updated || "N/A";
+        const nextRelease = metaRes?.seriess?.[0]?.next_release || "";
+        const link = `https://fred.stlouisfed.org/series/${indicator.seriesId}`;
 
-      const lastUpdated = metaRes?.seriess?.[0]?.last_updated || "N/A";
-      const nextRelease = metaRes?.seriess?.[0]?.next_release || "N/A";
-      const link = `https://fred.stlouisfed.org/series/${indicator.seriesId}`;
-
-      return `
-        <div class="indicator">
-          <div class="label"><a href="${link}" target="_blank" rel="noopener noreferrer">${indicator.name}</a>: ${value}</div>
-          <div class="meta">
-            Data as of: ${formatDate(observationDate)}<br>
-            Last updated: ${formatDate(lastUpdated)}<br>
-            ${nextRelease ? `Next release: ${formatDate(nextRelease)}` : ""}
+        return `
+          <div class="indicator">
+            <div class="label"><a href="${link}" target="_blank">${indicator.name}</a>: ${value}</div>
+            <div class="meta">
+              Data as of: ${formatDate(observationDate)}<br>
+              Last updated: ${formatDate(lastUpdated)}<br>
+              ${nextRelease ? `Next release: ${formatDate(nextRelease)}` : ""}
+            </div>
           </div>
-        </div>
-      `;
+        `;
+      } catch (error) {
+        console.error(`Failed to fetch ${indicator.name}`, error);
+        return `<div class="indicator"><strong>${indicator.name}:</strong> Error loading data</div>`;
+      }
     }
 
     async function loadIndicators() {
