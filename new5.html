@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Macro Dashboard</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      background-color: #f4f4f4;
+      color: #333;
+    }
+
+    h1 {
+      color: #e91e63;
+    }
+
+    h2 {
+      color: #333;
+      border-bottom: 2px solid #e91e63;
+      padding-bottom: 0.5rem;
+    }
+
+    .indicator {
+      margin: 0.5rem 0;
+      padding: 0.5rem;
+      background: #fff0f5;
+      border-left: 5px solid #e91e63;
+      border-radius: 5px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    a {
+      color: #e91e63;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .meta {
+      font-size: 0.9rem;
+      color: #555;
+    }
+
+    button {
+      margin-top: 1rem;
+      padding: 0.5rem 1rem;
+      background-color: #e91e63;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #d81b60;
+    }
+
+    @media (max-width: 600px) {
+      body {
+        padding: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Live Macroeconomic Indicators</h1>
+  <button onclick="loadAndSummarizeIndicators()">Refresh Data</button>
+
+  <div id="data">
+    <h2>Productivity</h2>
+    <div id="productivity">Loading...</div>
+
+    <h2>Labor Markets</h2>
+    <div id="labor">Loading...</div>
+
+    <h2>Inflation</h2>
+    <div id="inflation">Loading...</div>
+
+    <h2>Real Estate</h2>
+    <div id="real_estate">Loading...</div>
+
+    <h2>Sales</h2>
+    <div id="sales">Loading...</div>
+
+    <h2>Interest Rates</h2>
+    <div id="interest_rates">Loading...</div>
+
+    <h2>Household Finances</h2>
+    <div id="household">Loading...</div>
+
+    <h2>Miscellaneous</h2>
+    <div id="misc">Loading...</div>
+
+    <h2>Macroeconomic Summary</h2>
+    <div id="summary">Generating summary...</div>
+  </div>
+
+  <script>
+    const apiKey = "d1ddb8f826d9b698fbd807230c63455e";
+    const proxy = "https://corsproxy.io/?";
+    const baseObservationURL = "https://api.stlouisfed.org/fred/series/observations";
+    const baseMetaURL = "https://api.stlouisfed.org/fred/series";
+
+    const indicators = {
+      productivity: [
+        { name: "Real GDP % Change YoY", seriesId: "A191RL1Q225SBEA", frequency: "Quarterly" },
+        { name: "GDPNow", external: true, url: "https://www.atlantafed.org/cqer/research/gdpnow" },
+        { name: "Chicago Fed National Activity Index", seriesId: "CFNAI", frequency: "Monthly" }
+      ],
+      labor: [
+        { name: "Unemployment Rate", seriesId: "UNRATE", frequency: "Monthly" },
+        { name: "Total Non-Farm Payrolls", seriesId: "PAYEMS", frequency: "Monthly" },
+        { name: "Labor Force Participation Rate", seriesId: "CIVPART", frequency: "Monthly" }
+      ],
+      inflation: [
+        { name: "CPI % Change YoY", seriesId: "CPIAUCSL", frequency: "Monthly" },
+        { name: "Core CPI % Change YoY", seriesId: "USACPICORMINMEI", frequency: "Monthly" },
+        { name: "Core PCEPI % Change YoY", seriesId: "PCEPILFE", frequency: "Monthly" }
+      ],
+      real_estate: [
+        { name: "30 Year Mortgage Rates", seriesId: "MORTGAGE30US", frequency: "Weekly" },
+        { name: "New Housing Permits", seriesId: "PERMIT", frequency: "Monthly" },
+        { name: "New Housing Starts", seriesId: "HOUST", frequency: "Monthly" }
+      ],
+      sales: [
+        { name: "Advance Retail Sales", seriesId: "RSXFS", frequency: "Monthly" },
+        { name: "Durable Goods Orders", seriesId: "DGORDER", frequency: "Monthly" },
+        { name: "Total Vehicle Sales", seriesId: "TOTALSA", frequency: "Monthly" }
+      ],
+      interest_rates: [
+        { name: "10 Year Treasury Yield", seriesId: "DGS10", frequency: "Daily" },
+        { name: "10–2 Spread", seriesId: "T10Y2Y", frequency: "Daily" },
+        { name: "BAA – 10 Year Spread", seriesId: "BAA10Y", frequency: "Monthly" }
+      ],
+      household: [
+        { name: "Mortgage Delinquency Rates", seriesId: "DRSFRMACBS", frequency: "Quarterly" },
+        { name: "Personal Savings Rate", seriesId: "PSAVERT", frequency: "Monthly" },
+        { name: "Real Disposable Personal Income per Capita", seriesId: "A229RX0", frequency: "Quarterly" }
+      ],
+      misc: [
+        { name: "Smoothed US Recession Probability", seriesId: "RECPROUSM156N", frequency: "Monthly" },
+        { name: "Conference Board Leading Index", external: true, url: "https://data-central.conference-board.org/" }
+      ]
+    };
+
+    async function fetchMetaData(seriesId) {
+      const metaURL = `${proxy}${baseMetaURL}?series_id=${seriesId}&api_key=${apiKey}&file_type=json`;
+      const response = await fetch(metaURL);
+      const data = await response.json();
+      return data?.seriess?.[0];
+    }
+
+    async function fetchObservation(seriesId) {
+      const obsURL = `${proxy}${baseObservationURL}?series_id=${seriesId}&api_key=${apiKey}&file_type=json&sort_order=desc&limit=1`;
+      const response = await fetch(obsURL);
+      const data = await response.json();
+      return data?.observations?.[0];
+    }
+
+    async function fetchIndicator(indicator) {
+      if (indicator.external) {
+        return `<div class="indicator"><strong><a href="${indicator.url}" target="_blank">${indicator.name}</a>:</strong> External source</div>`;
+      }
+      const [meta, obs] = await Promise.all([
+        fetchMetaData(indicator.seriesId),
+        fetchObservation(indicator.seriesId)
+      ]);
+      const value = obs?.value || "N/A";
+      const valueDate = obs?.date || "N/A";
+      const lastUpdated = meta?.last_updated?.split(" ")[0] || "N/A";
+      const frequency = indicator.frequency || "N/A";
+      const link = `https://fred.stlouisfed.org/series/${indicator.seriesId}`;
+      return `<div class="indicator"><strong><a href="${link}" target="_blank">${indicator.name}</a>:</strong> ${value}<div class="meta">Data Date: ${valueDate} | Last Updated: ${lastUpdated}<br>Frequency: ${frequency}</div></div>`;
+    }
+
+    async function fetchIndicatorDataOnly(indicator) {
+      if (indicator.external) return { name: indicator.name, value: "N/A", date: "N/A" };
+      const obs = await fetchObservation(indicator.seriesId);
+      return {
+        name: indicator.name,
+        value: obs?.value || "N/A",
+        date: obs?.date || "N/A"
+      };
+    }
+
+    function buildSummaryPrompt(indicatorData) {
+      let summary = "Give a brief and plain-English summary of the current macroeconomic conditions using the data below:\n";
+      for (const [category, items] of Object.entries(indicatorData)) {
+        summary += `\n${category.toUpperCase()}:\n`;
+        for (const ind of items) {
+          summary += `- ${ind.name}: ${ind.value} (as of ${ind.date})\n`;
+        }
+      }
+      return summary + "\nKeep it concise and up to date.";
+    }
+
+    async function generateSummary(indicatorData) {
+      const prompt = buildSummaryPrompt(indicatorData);
+      try {
+        const response = await fetch('http://localhost:3000/api/summarize', {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt })
+        });
+        const data = await response.json();
+        document.getElementById("summary").innerText = data.summary;
+      } catch (error) {
+        console.error("Error generating summary:", error);
+        document.getElementById("summary").innerText = "Error generating summary.";
+      }
+    }
+
+    async function loadAndSummarizeIndicators() {
+      const indicatorData = {};
+      for (const [category, indicatorsList] of Object.entries(indicators)) {
+        const container = document.getElementById(category);
+        container.innerHTML = "Loading...";
+        const rendered = await Promise.all(indicatorsList.map(fetchIndicator));
+        container.innerHTML = rendered.join("");
+        const simplified = await Promise.all(indicatorsList.map(fetchIndicatorDataOnly));
+        indicatorData[category] = simplified;
+      }
+      await generateSummary(indicatorData);
+    }
+
+    loadAndSummarizeIndicators();
+  </script>
+</body>
+</html>
